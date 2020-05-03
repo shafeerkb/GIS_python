@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Apr 26 14:52:13 2020
-
 @author: vassar
 """
 
@@ -29,7 +28,6 @@ def grid2shp(grid_input_csv,output_folder):
         Input file in csv with lon,lat,UUID column.
     output_folder : String
         Output file location.
-
     Returns
     -------
     grid_shp_uuid : geopandas GeoDataFrame
@@ -42,7 +40,7 @@ def grid2shp(grid_input_csv,output_folder):
     grid_lon=list(sorted(set(UUID_grid['lon'])))
     grid_lat=list(sorted(set(UUID_grid['lat'])))
     
-    grid=np.array(UUID_grid['UUID']).reshape((len(grid_lon),len(grid_lat)))
+#    grid=np.array(UUID_grid['UUID']).reshape((len(grid_lon),len(grid_lat)))
     XX, YY = np.meshgrid(grid_lon, grid_lat)
     
     # CALCULATE DIFF
@@ -56,24 +54,23 @@ def grid2shp(grid_input_csv,output_folder):
     #add edge X
     XXX=XX[:,:-1]+DX
     col=XX[:,0]-DX[:,0]
-    col.shape = (cols,1)    
+    col.shape = (rows,1)    
     XXX=np.hstack((col,XXX))
     col=XX[:,-1]+DX[:,-1]
-    col.shape = (cols,1) 
+    col.shape = (rows,1) 
     XXX=np.hstack((XXX,col))
     #add edge Y   
     YYY=YY[:-1,:]+DY
     row=YY[0,:]-DY[0,:]
-    row.shape = (1,rows)    
+    row.shape = (1,cols)    
     YYY=np.vstack((row,YYY))
     row=YY[-1,:]+DY[-1,:]
-    row.shape = (1,rows) 
+    row.shape = (1,cols) 
     YYY=np.vstack((YYY,row))  
         
     
     polygons = []
     for x in range(cols):
-        print(x,)
         for y in range(rows):
             
             xleft =float(XXX[y,x])
@@ -81,12 +78,15 @@ def grid2shp(grid_input_csv,output_folder):
                         
             ytop  =float(YYY[y,x])
             ybot  =float(YYY[y+1,x])
+            if(np.any((UUID_grid["lon"]==XX[y,x])&(  UUID_grid["lat"]==YY[y,x]))):
+                polygons.append( Polygon([(xleft, ybot), (xright, ybot), (xright, ytop), (xleft, ytop)]) )  
+                print(x,y)
+
             
-            polygons.append( Polygon([(xleft, ybot), (xright, ybot), (xright, ytop), (xleft, ytop)]) )
-    uuid_df=pd.DataFrame(list(grid.flatten()),columns =['UUID'])
-                                                      
+#    uuid_df=pd.DataFrame(list(grid.flatten()),columns =['UUID'])
+                                             
     #Make UUID field
-    grid_shp_uuid = gpd.GeoDataFrame(uuid_df, geometry=polygons)
+    grid_shp_uuid = gpd.GeoDataFrame(UUID_grid['UUID'], geometry=polygons)
     #add projection
     grid_shp_uuid.crs = {'init' :'epsg:4326'}
     grid_shp_uuid.to_file(output_folder+'/grid.shp')
@@ -98,12 +98,10 @@ def get_area_km2(geometry):
     ----------
     geometry : Shaply geometry
         Intersection
-
     Returns
     -------
     TYPE
         Area in km2.
-
     '''
     shapely_geometry = shape(geometry)
     geom_aea = transform(
@@ -128,11 +126,9 @@ def f(polyg):
     ----------
     polyg : geometry.polygon
         Inut entity polygon
-
     Returns
     -------
     entity and associated_entity polygon inter section area 
-
     '''
     
     grid_cells1=fiona.open(grd_shp_file)
@@ -149,11 +145,13 @@ def f(polyg):
             intersection=poly.intersection(shape(grid_cells1[pos]['geometry']))
             if intersection.area > 0:
                     area_fract=intersection.area/shape(grid_cells1[pos]['geometry']).area
+                    area_fract1=intersection.area/poly.area
                     area_actual=get_area_km2(intersection)
                     prop = {'entity_uuid': polyg['properties']['UUID'],
                             'associated_entity_uuid' : grid_cells1[pos]['properties']['UUID'],
                             'intersection_area_km2':area_actual, 
-                            'intersection_percentage': round(area_fract*100,3),                           
+                            'intersection_percentage': round(area_fract*100,3),
+                            'intersection_percentage_': round(area_fract1*100,3),
                             
                             }
                     a.append(prop)
@@ -186,12 +184,11 @@ if __name__ == '__main__':
     processes_no = int(sys.argv[4])
     output_folder = sys.argv[5]
     
-#     grid_input_csv="/home/vassar/Documents/Rahul/SuBBasin_Intersection /IMD_0.027.csv"
-# #    in_shap_name = '/home/vassar/Documents/Rahul/SuBBasin_Intersection /New_subbasin shapefile/SUBBASIN_CWC_UUID_JOIN_new.shp'
-#     in_shap_name = "/home/vassar/Documents/Rahul/Block&&SubBasin/Block_UUID (1)/Block_GWR_new_geo_UUID.shp"
-#     grid_shp_metadata = 'grid_shp_metadata.csv'
-#     processes_no=int("4")
-#     output_folder ="/home/vassar/shp_int/"
+    # grid_input_csv="nrscdata_0.05.csv"
+    # in_shap_name = "IMD_0.25/IMD_0.25_India_grids_only.shp"
+    # grid_shp_metadata = 'nrscdata_0.05_IMD_0_25.csv'
+    # processes_no=int("4")
+    # output_folder ="./"
     
     grd_shp_file=output_folder+"/grid.shp"
     
@@ -219,4 +216,3 @@ if __name__ == '__main__':
         df=df.append(pd.DataFrame(result[i]))
     
     df.to_csv(output_folder+grid_shp_metadata,index=False)  #Save output file
-        
